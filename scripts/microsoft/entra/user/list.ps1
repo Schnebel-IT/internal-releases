@@ -20,7 +20,7 @@ Import-Module ExchangeOnlineManagement -ErrorAction SilentlyContinue
     Die gesammelten Informationen werden dann in eine CSV-Datei exportiert.
 
 .NOTES
-    Autor: T3 Chat (Angepasst für Schnebel-IT)
+    Autor: Schnebel-IT
     Datum: 27. Mai 2025
     Version: 3.0
     Voraussetzung: 
