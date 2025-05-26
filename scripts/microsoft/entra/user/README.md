@@ -13,7 +13,7 @@ Damit das Skript funktioniert, benötigst du das **Microsoft Graph PowerShell SD
 Öffne eine **PowerShell als Administrator** (Rechtsklick auf PowerShell -> "Als Administrator ausführen") und gib folgenden Befehl ein:
 
 ```powershell
-Install-Module -Name Microsoft.Graph -Scope CurrentUser
+Install-Module -Name Microsoft.Graph -Scope CurrentUser -Force
 ```
 
 Bestätige die Nachfragen mit `J` (Ja) oder `A` (Alle). Das Modul wird dann heruntergeladen und installiert.
