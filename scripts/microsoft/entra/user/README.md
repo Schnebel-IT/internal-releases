@@ -6,6 +6,11 @@ Dieses Projekt enthält ein PowerShell-Skript, das dir hilft, einen schnellen Ü
 
 ---
 
+### 🚨 ACHTUNG:
+
+Das Skript ist derzeit noch nicht fertig und enthält daher noch viele Bugs!
+
+
 ### 🚨 Wichtig: Das benötigte Modul installieren!
 
 Damit das Skript funktioniert, benötigst du das **Microsoft Graph PowerShell SDK**. Keine Sorge, die Installation ist super einfach!
