@@ -35,7 +35,9 @@ Wir sind ein kleines Team und schätzen jede Form von Engagement!
 
 ### 📝 Lizenz
 
-Alle Inhalte in diesem Repository werden unter der [MIT-Lizenz](LICENSE) veröffentlicht. Das bedeutet im Grunde: Du kannst sie frei nutzen, verändern und weitergeben. Eine kurze Erwähnung (Attribution), dass die ursprüngliche Quelle Schnebel-IT ist, wäre nett, ist aber keine Pflicht.
+Alle Inhalte in diesem Repository sind Eigentum der **Schnebel IT-Systemhaus GmbH**.
+Die Nutzung der hier bereitgestellten Skripte, Pakete und Tools ist primär für Referenzzwecke oder zur freien privaten/gewerblichen Nutzung ohne Gewährleistung vorgesehen.
+Eine kommerzielle Vervielfältigung, der Weiterverkauf oder die umfangreiche Umgestaltung ohne vorherige schriftliche Zustimmung der Schnebel IT-Systemhaus GmbH ist nicht gestattet.
 
 ---
 
