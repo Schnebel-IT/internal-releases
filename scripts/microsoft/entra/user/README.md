@@ -10,6 +10,7 @@ Dieses Projekt enthält ein PowerShell-Skript, das dir hilft, einen schnellen Ü
 
 Das Skript ist derzeit noch nicht fertig und enthält daher noch viele Bugs!
 
+---
 
 ### 🚨 Wichtig: Das benötigte Modul installieren!
 
