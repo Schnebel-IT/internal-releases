@@ -13,7 +13,7 @@
     21. Oktober 2025
 
 .EXAMPLE
-    Get-ADGroupMembershipReport -DomainName "RIETHO.local" -OUPath "OU=Gruppen,DC=RIETHO,DC=local" -Recursive
+    Get-ADGroupMembershipReport -DomainName "HOME.local" -OUPath "OU=Gruppen,DC=HOME,DC=local" -Recursive
 #>
 
 function Get-ADGroupMembershipReport {
@@ -79,8 +79,8 @@ function Get-ADGroupMembershipReport {
 # ---------------------------------------------------------------------------
 
 # === KONFIGURATION ===
-$DomainName = "RIETHO.local"
-$OUPath     = "OU=Gruppen,DC=RIETHO,DC=local"
+$DomainName = "HOME.local"
+$OUPath     = "OU=Gruppen,DC=HOME,DC=local"
 $Recursive  = $true
 $OutputFile = "C:\Temp\ADGroups_$(Get-Date -Format 'yyyyMMdd_HHmm').csv"
 

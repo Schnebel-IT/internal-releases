@@ -33,8 +33,8 @@ Es ist besonders hilfreich für:
 
 | Parameter     | Typ    | Pflicht | Beschreibung                                                        |
 | ------------- | ------ | ------- | ------------------------------------------------------------------- |
-| `-DomainName` | String | ✅      | AD-Domäne, z. B. `RIETHO.local`                                     |
-| `-OUPath`     | String | ✅      | LDAP-Suchpfad der Gruppen (z. B. `OU=Gruppen,DC=RIETHO,DC=local`)   |
+| `-DomainName` | String | ✅      | AD-Domäne, z. B. `HOME.local`                                       |
+| `-OUPath`     | String | ✅      | LDAP-Suchpfad der Gruppen (z. B. `OU=Gruppen,DC=HOME,DC=local`)     |
 | `-Recursive`  | Switch | ❌      | Verschachtelte Gruppen auflösen                                     |
 | `-OutputFile` | String | ❌      | Exportpfad für CSV-Datei (Standard: `C:\Temp\ADGroups_<Datum>.csv`) |
 
@@ -45,13 +45,13 @@ Es ist besonders hilfreich für:
 ### Direktaufruf über Repository (GitHub RAW)
 
 ```powershell
-iex "& { $(Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/Schnebel-IT/internal-releases/refs/heads/main/scripts/ad/groups/list_ad_groups.ps1') } -DomainName 'RIETHO.local' -OUPath 'OU=Gruppen,DC=RIETHO,DC=local' -Recursive"
+iex "& { $(Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/Schnebel-IT/internal-releases/refs/heads/main/scripts/ad/groups/list_ad_groups.ps1') } -DomainName 'HOME.local' -OUPath 'OU=Gruppen,DC=HOME,DC=local' -Recursive"
 ```
 
 ### Lokale Ausführung
 
 ```powershell
-.\list_ad_groups.ps1 -DomainName "RIETHO.local" -OUPath "OU=Gruppen,DC=RIETHO,DC=local" -Recursive
+.\list_ad_groups.ps1 -DomainName "HOME.local" -OUPath "OU=Gruppen,DC=HOME,DC=local" -Recursive
 ```
 
 ---
@@ -67,9 +67,9 @@ Autor: Luca Baumann
 
 ───────────────────────────────────────────────────────────────────
 
-Domäne: RIETHO.local
+Domäne: HOME.local
 
-OU-Pfad:OU=Gruppen,DC=RIETHO,DC=local
+OU-Pfad:OU=Gruppen,DC=HOME,DC=local
 
 Rekursive Auflösung: Aktiv
 
@@ -85,11 +85,11 @@ GroupNameMemberName   MemberType
 
 
 ---
-g-Vertrieb   RIETHO\m.musterfrau   User
+g-Vertrieb   HOME\m.musterfrau   User
 
-g-Vertrieb   RIETHO\g-MarketingGroup
+g-Vertrieb   HOME\g-MarketingGroup
 
-g-IT RIETHO\admin.svc  User
+g-IT HOME\admin.svc  User
 
 Export abgeschlossen.
 
@@ -102,10 +102,10 @@ Export abgeschlossen.
 
 Die exportierte Datei enthält standardmäßig folgende Spalten:
 
-| GroupName  | MemberName          | MemberType | Domain       |
-| ---------- | ------------------- | ---------- | ------------ |
-| g-Vertrieb | RIETHO\m.musterfrau | User       | RIETHO.local |
-| g-IT       | RIETHO\g-Support    | Group      | RIETHO.local |
+| GroupName  | MemberName        | MemberType | Domain     |
+| ---------- | ----------------- | ---------- | ---------- |
+| g-Vertrieb | HOME\m.musterfrau | User       | HOME.local |
+| g-IT       | HOME\g-Support    | Group      | HOME.local |
 
 ---
 
@@ -124,7 +124,7 @@ Wenn du mit Gruppennestings arbeitest (z. B. wenn `g-IT` wiederum `g-Admins` ent
 nutze den Schalter `-Recursive`, um auch diese Mitglieder rekursiv aufzulösen:
 
 ```powershell
-.\list_ad_groups.ps1 -DomainName "RIETHO.local" -OUPath "OU=Gruppen,DC=RIETHO,DC=local" -Recursive
+.\list_ad_groups.ps1 -DomainName "HOME.local" -OUPath "OU=Gruppen,DC=HOME,DC=local" -Recursive
 ```
 
 ---
