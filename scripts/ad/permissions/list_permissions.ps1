@@ -6,7 +6,7 @@
     Dieses Skript analysiert NTFS-Berechtigungen (ACLs) in einem angegebenen Startpfad.
     Es kann rekursiv Unterordner durchsuchen, jedoch nur bis zu einer definierten maximalen Tiefe.
     Ordner, auf die der Benutzer keinen Zugriff hat, werden automatisch übersprungen.
-    Optional kann die Ausgabe auf eine bestimmte Domäne gefiltert werden (z.B. "RIETHO").
+    Optional kann die Ausgabe auf eine bestimmte Domäne gefiltert werden (z.B. "HOME").
 
 .AUTHOR
     Luca Baumann
@@ -15,7 +15,7 @@
     21. Oktober 2025
 
 .EXAMPLE
-    Get-AclReport -Path "D:\Daten" -MaxDepth 3 -Domain "RIETHO"
+    Get-AclReport -Path "D:\Daten" -MaxDepth 3 -Domain "HOME"
 #>
 
 function Get-AclReport {
@@ -86,7 +86,7 @@ function Get-AclReport {
 # === KONFIGURATION ===
 $StartPath = "D:\Daten"  # Startordner
 $MaxDepth  = 3            # Maximale Tiefe (inkl. Startordner)
-$Domain    = "RIETHO"     # Nur Konten dieser Domäne werden berücksichtigt (optional)
+$Domain    = "HOME"     # Nur Konten dieser Domäne werden berücksichtigt (optional)
 $OutputFile = "C:\Temp\FileserverPermissions_$(Get-Date -Format 'yyyyMMdd_HHmm').csv"
 
 # === STATUSAUSGABE ===
