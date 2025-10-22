@@ -1,57 +1,65 @@
 ## 🧾 Active Directory Gruppen-Mitglieder-Analyse
 
-**Datei:** `main/scripts/ad/groups/list_ad_groups.ps1`
-**Version:** 1.0
-**Autor:** Luca Baumann
-**Letzte Änderung:** 21. Oktober 2025
+**Datei:** `main/scripts/ad/groups/list_ad_groups.ps1`  
+**Version:** 1.1  
+**Autor:** Luca Baumann  
+**Letzte Änderung:** 22. Oktober 2025
 
 ---
 
 ## 📄 Übersicht
 
-Das PowerShell-Skript **`list_ad_groups.ps1`** erstellt einen strukturierten Bericht darüber, **welche Benutzer und Gruppen in bestimmten Active Directory-Gruppen Mitglied sind**.
-Es ist besonders hilfreich für:
+Das PowerShell-Skript **`list_ad_groups.ps1`** erstellt einen umfassenden Bericht über **Active Directory-Gruppen und Benutzer-Mitgliedschaften**.  
+Es kann in **zwei Richtungen** arbeiten:
 
-- Sicherheits-Audits (z. B. Compliance-Kontrollen)
-- Übersicht von Gruppenstrukturen innerhalb einer OU
-- Vorbereitung von Migrations- oder Bereinigungsvorgängen
-- Export und Analyse von Mitgliedschaften in Excel, Power BI o. Ä.
+1. **Gruppenanalyse**  
+   → Zeigt **alle Mitglieder zu jeder Gruppe** innerhalb eines OU-Bereichs
+2. **Benutzeranalyse**  
+   → Zeigt **alle Gruppenmitgliedschaften (direkt & verschachtelt)** zu jedem Benutzer
+
+Beide Modi können über Parameter frei gewählt werden.
 
 ---
 
 ## ⚙️ Funktionsweise
 
-1. Das Skript verbindet sich mit der angegebenen **Active Directory Domäne**.
-2. Es durchsucht die definierte **OU (Organizational Unit)** nach Gruppenobjekten.
-3. Für jede gefundene Gruppe werden alle Mitglieder (Benutzer, Computer, Gruppen) aufgelistet.
-4. Optional kann eine **rekursive Auflösung** aktiviert werden, bei der auch Mitglieder verschachtelter Gruppen aufgelistet werden.
-5. Die Ergebnisse werden **in der Konsole** angezeigt und **als CSV-Datei exportiert**.
+Das Skript durchsucht Active Directory dynamisch anhand der gewählten Option:
+
+- Im **Gruppenmodus** ermittelt es Gruppen, deren Beschreibung (falls vorhanden) sowie deren Mitglieder.
+- Im **Benutzermodus** ermittelt es Benutzerobjekte und listet alle AD-Gruppen, in denen sie Mitglied sind.
+- Die Ausgabe kann rekursiv alle verschachtelten Mitgliedschaften auflösen.
+- Ergebnisse werden sowohl **in der Konsole** als auch **in einer CSV-Datei** ausgegeben.
 
 ---
 
 ## 🧩 Parameter
 
-| Parameter     | Typ    | Pflicht | Beschreibung                                                        |
-| ------------- | ------ | ------- | ------------------------------------------------------------------- |
-| `-DomainName` | String | ✅      | AD-Domäne, z. B. `HOME.local`                                       |
-| `-OUPath`     | String | ✅      | LDAP-Suchpfad der Gruppen (z. B. `OU=Gruppen,DC=HOME,DC=local`)     |
-| `-Recursive`  | Switch | ❌      | Verschachtelte Gruppen auflösen                                     |
-| `-OutputFile` | String | ❌      | Exportpfad für CSV-Datei (Standard: `C:\Temp\ADGroups_<Datum>.csv`) |
+| Parameter     | Typ    | Pflicht | Beschreibung                                                  |
+| ------------- | ------ | ------- | ------------------------------------------------------------- |
+| `-DomainName` | String | ✅      | AD-Domäne, z. B. `RIETHO.local`                               |
+| `-OUPath`     | String | ✅      | LDAP-Suchpfad oder OU, z. B. `OU=Gruppen,DC=RIETHO,DC=local`  |
+| `-Mode`       | String | ✅      | "Group" = Gruppenanalyse<br>"User" = Benutzeranalyse          |
+| `-Recursive`  | Switch | ❌      | Verschachtelte Mitgliedschaften auflösen                      |
+| `-OutputFile` | String | ❌      | Exportpfad für CSV (Standard: `C:\Temp\ADGroups_<Datum>.csv`) |
 
 ---
 
-## 🚀 Beispielaufruf
+## 🚀 Beispielaufrufe
 
-### Direktaufruf über Repository (GitHub RAW)
+### 🔹 Gruppenanalyse:
 
 ```powershell
-iex "& { $(Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/Schnebel-IT/internal-releases/refs/heads/main/scripts/ad/groups/list_ad_groups.ps1') } -DomainName 'HOME.local' -OUPath 'OU=Gruppen,DC=HOME,DC=local' -Recursive"
+.\list_ad_groups.ps1 -DomainName "RIETHO.local" `
+ -OUPath "OU=Gruppen,DC=RIETHO,DC=local" `
+ -Mode "Group" -Recursive
 ```
 
-### Lokale Ausführung
+### 🔹 Benutzeranalyse:
 
 ```powershell
-.\list_ad_groups.ps1 -DomainName "HOME.local" -OUPath "OU=Gruppen,DC=HOME,DC=local" -Recursive
+.\list_ad_groups.ps1 -DomainName "RIETHO.local" `
+ -OUPath "OU=Benutzer,DC=RIETHO,DC=local" `
+ -Mode "User" -Recursive
 ```
 
 ---
