@@ -70,7 +70,9 @@ Datei: `NTFSBerechtigungen_<Datum>.csv`
 ## Verhalten im Detail
 
 - **Ordner ohne Zugriff** werden übersprungen und mit Grund im Fehler-Log festgehalten. Der Lauf bricht dabei nicht ab.
-- **Junctions und symbolische Links** werden nicht verfolgt. Das verhindert Endlosschleifen und doppelte Zählung. Die Anzahl steht in der Zusammenfassung.
+- **Junctions und symbolische Links** werden nicht verfolgt. Das verhindert Endlosschleifen und doppelte Zählung. Jeder Link steht mit Pfad als Warnung im Fehler-Log.
+- **Nichts verschwindet unbemerkt.** Die Zusammenfassung zeigt, wie viele Berechtigungen gelesen und wie viele durch `-Domain` ausgeblendet wurden, wie viele Konten nur als SID auflösbar waren und wie viele Ordner auf der letzten Ebene noch weitere Unterordner haben, die `-MaxDepth` abgeschnitten hat.
+- **Achtung beim Domänenfilter:** Mit `-Domain` fallen auch `BUILTIN\Administratoren`, `NT AUTHORITY\SYSTEM`, `CREATOR OWNER`, lokale Konten und nicht auflösbare SIDs heraus. Für einen vollständigen Bericht `-Domain` weglassen.
 - **Lange Pfade** über 260 Zeichen werden auch unter Windows PowerShell 5.1 gelesen.
 - **Netzwerkfehler** (Freigabe kurz nicht erreichbar) lassen den betroffenen Ordner offen. Ein erneuter Aufruf mit denselben Parametern liest nur diese Ordner nach.
 - Für vollständige Ergebnisse das Skript als Administrator ausführen.
@@ -88,4 +90,4 @@ Datei: `NTFSBerechtigungen_<Datum>.csv`
 
 ---
 
-**Autor:** Luca Baumann · **Version:** 2.0 · **Stand:** 06.10.2026
+**Autor:** Luca Baumann · **Version:** 2.1 · **Stand:** 06.10.2026

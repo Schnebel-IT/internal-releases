@@ -58,7 +58,7 @@
 
 .NOTES
     Autor:     Luca Baumann
-    Version:   2.0
+    Version:   2.1
     Geaendert: 06.10.2026
 #>
 [CmdletBinding()]
@@ -86,7 +86,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '2.0'
+$ScriptVersion = '2.1'
 $ScriptFile = 'list_ad_groups.ps1'
 
 #region ADReportKit 2.0
@@ -594,11 +594,6 @@ function Write-ReportSummary {
 #  Active Directory helpers
 # ----------------------------------------------------------------------------
 
-# RIDs of the well-known groups that are used as primary group. Members of a
-# primary group are not listed in its "member" attribute, so they are queried
-# separately via primaryGroupID.
-$PrimaryGroupRids = @(513, 514, 515, 516, 521)
-
 function Connect-Directory {
     param([string]$DomainName, [string]$Server)
     if (-not (Get-Module -ListAvailable -Name ActiveDirectory)) {
@@ -621,22 +616,6 @@ function Connect-Directory {
     }
 }
 
-function ConvertTo-LdapFilterValue {
-    param([string]$Value)
-    $builder = New-Object System.Text.StringBuilder
-    foreach ($char in $Value.ToCharArray()) {
-        switch ([int]$char) {
-            0x5C { [void]$builder.Append('\5c') }
-            0x2A { [void]$builder.Append('\2a') }
-            0x28 { [void]$builder.Append('\28') }
-            0x29 { [void]$builder.Append('\29') }
-            0x00 { [void]$builder.Append('\00') }
-            default { [void]$builder.Append($char) }
-        }
-    }
-    $builder.ToString()
-}
-
 # "CN=Name\, Vorname,OU=..." -> "Name, Vorname"
 function Get-NameFromDn {
     param([string]$DistinguishedName)
@@ -657,51 +636,127 @@ function Get-MemberEnabled {
     if (([int]$Object.userAccountControl -band 2) -eq 2) { 'False' } else { 'True' }
 }
 
-$MemberProperties = @('sAMAccountName', 'displayName', 'userAccountControl')
+function Get-Rid {
+    param($Sid)
+    if (-not $Sid) { return -1 }
+    [int](([string]$Sid.Value).Split('-')[-1])
+}
+
+# Group mode works on two bulk queries instead of one LDAP query per group:
+#   1. every group of the domain with its "member" attribute
+#   2. every possible member (users, computers, contacts, foreign principals)
+# Members are then read straight from each group's "member" attribute, which is
+# the authoritative list in AD. Nothing depends on LDAP filters or on the
+# memberOf back-link, so no member can silently drop out of the report.
+function New-MemberIndex {
+    param($Context)
+    $index = @{
+        ByDn      = New-Object 'System.Collections.Generic.Dictionary[string,object]' -ArgumentList ([System.StringComparer]::OrdinalIgnoreCase)
+        PrimaryOf = @{}
+        Groups    = 0
+        Objects   = 0
+    }
+    $groups = Invoke-WithRetry {
+        Get-ADGroup -Filter * -SearchBase $Context.DN -Server $Context.Server -Properties Description, displayName, member -ResultPageSize 1000 -ErrorAction Stop
+    }
+    foreach ($group in $groups) { $index.ByDn[$group.DistinguishedName] = $group; $index.Groups++ }
+
+    $objects = Invoke-WithRetry {
+        Get-ADObject -LDAPFilter '(|(objectClass=user)(objectClass=contact)(objectClass=foreignSecurityPrincipal))' `
+            -SearchBase $Context.DN -SearchScope Subtree -Server $Context.Server `
+            -Properties sAMAccountName, displayName, userAccountControl, primaryGroupID -ResultPageSize 1000 -ErrorAction Stop
+    }
+    foreach ($object in $objects) {
+        $index.ByDn[$object.DistinguishedName] = $object
+        $index.Objects++
+        if ($object.primaryGroupID) {
+            $rid = [int]$object.primaryGroupID
+            if (-not $index.PrimaryOf.ContainsKey($rid)) { $index.PrimaryOf[$rid] = New-Object 'System.Collections.Generic.List[object]' }
+            $index.PrimaryOf[$rid].Add($object)
+        }
+    }
+    $index
+}
+
+function New-MemberRow {
+    param($Group, [string]$Dn, $Object, [string]$Membership, $Context)
+    if ($Object) {
+        $name = Get-MemberName $Object
+        $type = [string]$Object.ObjectClass
+        $display = $Object.displayName
+        $enabled = Get-MemberEnabled $Object
+    }
+    else {
+        # Member outside this domain (e.g. another domain of the forest).
+        $name = Get-NameFromDn $Dn
+        $type = 'extern'
+        $display = $Dn
+        $enabled = ''
+    }
+    [pscustomobject][ordered]@{
+        GroupName         = $Group.Name
+        Description       = $Group.Description
+        MemberName        = $name
+        MemberDisplayName = $display
+        MemberType        = $type
+        MemberEnabled     = $enabled
+        Membership        = $Membership
+        Domain            = $Context.DnsRoot
+    }
+}
 
 function Get-GroupRows {
-    param($Group, $Context, [bool]$Recursive)
-    $dnValue = ConvertTo-LdapFilterValue $Group.DistinguishedName
-    $filter = if ($Recursive) { "(memberOf:1.2.840.113556.1.4.1941:=$dnValue)" } else { "(memberOf=$dnValue)" }
-    $members = @(Invoke-WithRetry {
-            Get-ADObject -LDAPFilter $filter -SearchBase $Context.DN -SearchScope Subtree -Server $Context.Server `
-                -Properties $MemberProperties -ResultPageSize 1000 -ErrorAction Stop
-        })
-
-    $primaryMembers = @()
-    $rid = [int]($Group.SID.Value.Split('-')[-1])
-    if ($PrimaryGroupRids -contains $rid) {
-        $primaryMembers = @(Invoke-WithRetry {
-                Get-ADObject -LDAPFilter "(primaryGroupID=$rid)" -SearchBase $Context.DN -SearchScope Subtree -Server $Context.Server `
-                    -Properties $MemberProperties -ResultPageSize 1000 -ErrorAction Stop
-            })
-    }
-
-    $direct = $null
-    if ($Recursive) {
-        $direct = New-Object 'System.Collections.Generic.HashSet[string]' -ArgumentList ([System.StringComparer]::OrdinalIgnoreCase)
-        foreach ($dn in $Group.member) { [void]$direct.Add($dn) }
-    }
-
+    param($Group, $Index, $Context, [bool]$Recursive)
     $rows = New-Object 'System.Collections.Generic.List[object]'
-    $entries = @($members | ForEach-Object { @{ Object = $_; Kind = $null } }) + @($primaryMembers | ForEach-Object { @{ Object = $_; Kind = 'Primary' } })
-    foreach ($entry in $entries) {
-        $object = $entry.Object
-        # Nesting cycles (A in B in A) would list the group as its own member.
-        if ($object.DistinguishedName -eq $Group.DistinguishedName) { continue }
-        $membership = $entry.Kind
-        if (-not $membership) {
-            $membership = if (-not $Recursive -or $direct.Contains($object.DistinguishedName)) { 'Direct' } else { 'Nested' }
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' -ArgumentList ([System.StringComparer]::OrdinalIgnoreCase)
+    [void]$seen.Add($Group.DistinguishedName)
+
+    foreach ($dn in $Group.member) {
+        if (-not $seen.Add($dn)) { continue }
+        $object = $null
+        [void]$Index.ByDn.TryGetValue($dn, [ref]$object)
+        $rows.Add((New-MemberRow $Group $dn $object 'Direct' $Context))
+    }
+    $primary = $Index.PrimaryOf[(Get-Rid $Group.SID)]
+    if ($primary) {
+        foreach ($object in $primary) {
+            if ($seen.Add($object.DistinguishedName)) { $rows.Add((New-MemberRow $Group $object.DistinguishedName $object 'Primary' $Context)) }
         }
+    }
+
+    if ($Recursive) {
+        # Walk nested groups breadth-first; $seen also protects against nesting cycles.
+        $queue = New-Object 'System.Collections.Generic.Queue[object]'
+        foreach ($dn in $Group.member) {
+            $nestedGroup = $null
+            if ($Index.ByDn.TryGetValue($dn, [ref]$nestedGroup) -and $nestedGroup.ObjectClass -eq 'group') { $queue.Enqueue($nestedGroup) }
+        }
+        $visited = New-Object 'System.Collections.Generic.HashSet[string]' -ArgumentList ([System.StringComparer]::OrdinalIgnoreCase)
+        while ($queue.Count -gt 0) {
+            $current = $queue.Dequeue()
+            if (-not $visited.Add($current.DistinguishedName)) { continue }
+            $members = New-Object 'System.Collections.Generic.List[object]'
+            foreach ($dn in $current.member) {
+                $object = $null
+                [void]$Index.ByDn.TryGetValue($dn, [ref]$object)
+                $members.Add(@($dn, $object))
+            }
+            $primary = $Index.PrimaryOf[(Get-Rid $current.SID)]
+            if ($primary) { foreach ($object in $primary) { $members.Add(@($object.DistinguishedName, $object)) } }
+            foreach ($pair in $members) {
+                $dn = [string]$pair[0]
+                $object = $pair[1]
+                if ($object -and $object.ObjectClass -eq 'group') { $queue.Enqueue($object) }
+                if ($seen.Add($dn)) { $rows.Add((New-MemberRow $Group $dn $object 'Nested' $Context)) }
+            }
+        }
+    }
+
+    if ($rows.Count -eq 0) {
+        # Keep empty groups visible in the report.
         $rows.Add([pscustomobject][ordered]@{
-                GroupName         = $Group.Name
-                Description       = $Group.Description
-                MemberName        = Get-MemberName $object
-                MemberDisplayName = $object.displayName
-                MemberType        = $object.ObjectClass
-                MemberEnabled     = Get-MemberEnabled $object
-                Membership        = $membership
-                Domain            = $Context.DnsRoot
+                GroupName = $Group.Name; Description = $Group.Description; MemberName = ''; MemberDisplayName = ''
+                MemberType = ''; MemberEnabled = ''; Membership = 'Empty'; Domain = $Context.DnsRoot
             })
     }
     , [object[]]@($rows | Sort-Object Membership, MemberName)
@@ -845,37 +900,43 @@ try {
     }
 
     if ($Mode -eq 'Group') {
-        Write-UiStatus Step 'Lese Gruppen ...'
-        $groupProperties = @('Description')
-        if ($Recursive) { $groupProperties += 'member' }
+        Write-UiStatus Step 'Lese alle Gruppen und Konten der Domaene ...'
+        $index = New-MemberIndex $context
+        Write-UiStatus Ok ('{0} Gruppen und {1} Konten geladen' -f (Format-UiNumber $index.Groups), (Format-UiNumber $index.Objects))
         $groups = @(Invoke-WithRetry {
-                Get-ADGroup -Filter * -SearchBase $OUPath -Server $context.Server -Properties $groupProperties -ResultPageSize 1000 -ErrorAction Stop
+                Get-ADGroup -Filter * -SearchBase $OUPath -SearchScope Subtree -Server $context.Server -ResultPageSize 1000 -ErrorAction Stop
             } | Sort-Object Name)
-        Write-UiStatus Ok ('{0} Gruppen gefunden' -f (Format-UiNumber $groups.Count))
+        Write-UiStatus Ok ('{0} Gruppen in der Suchbasis' -f (Format-UiNumber $groups.Count))
 
         $emptyGroups = 0
+        $memberRows = 0
         Start-UiProgress 'Gruppen werden analysiert' $job.Done.Count
         $position = 0
-        foreach ($group in $groups) {
+        foreach ($listed in $groups) {
             $position++
-            $key = $group.ObjectGUID.ToString()
+            $key = $listed.ObjectGUID.ToString()
             if (Test-ReportItemDone $key) { continue }
-            Write-UiProgress $position $groups.Count $group.Name
+            Write-UiProgress $position $groups.Count $listed.Name
             try {
-                $rows = Get-GroupRows -Group $group -Context $context -Recursive ([bool]$Recursive)
-                if ($rows.Count -eq 0) { $emptyGroups++ }
+                $group = $null
+                if (-not $index.ByDn.TryGetValue($listed.DistinguishedName, [ref]$group)) {
+                    $group = Invoke-WithRetry { Get-ADGroup -Identity $listed.DistinguishedName -Server $context.Server -Properties Description, member -ErrorAction Stop }
+                }
+                $rows = Get-GroupRows -Group $group -Index $index -Context $context -Recursive ([bool]$Recursive)
+                if ($rows.Count -eq 1 -and $rows[0].Membership -eq 'Empty') { $emptyGroups++ } else { $memberRows += $rows.Count }
                 Add-ReportItem $key $rows
             }
             catch {
-                if (Test-TransientError $_) { Write-ReportIssue $group.Name $_.Exception.Message -Kind Retryable }
-                else { Write-ReportIssue $group.Name $_.Exception.Message -Kind Fail; Add-ReportItem $key $null }
+                if (Test-TransientError $_) { Write-ReportIssue $listed.Name $_.Exception.Message -Kind Retryable }
+                else { Write-ReportIssue $listed.Name $_.Exception.Message -Kind Fail; Add-ReportItem $key $null }
             }
         }
         Stop-UiProgress
         Complete-ReportJob
         Write-ReportSummary ([ordered]@{
-                'Gruppen'            = Format-UiNumber $groups.Count
+                'Gruppen'             = Format-UiNumber $groups.Count
                 'davon ohne Mitglied' = Format-UiNumber $emptyGroups
+                'Mitglieder-Zeilen'   = Format-UiNumber $memberRows
             })
     }
     else {

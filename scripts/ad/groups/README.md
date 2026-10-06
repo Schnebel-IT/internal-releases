@@ -77,8 +77,13 @@ Datei: `ADGruppen_<Datum>.csv` (Modus `Group`) bzw. `ADBenutzerGruppen_<Datum>.c
 | `Direct` | direkt eingetragenes Mitglied |
 | `Nested` | Mitglied über eine verschachtelte Gruppe (nur mit `-Recursive`) |
 | `Primary` | Mitgliedschaft über die primäre Gruppe, z. B. *Domain Users* |
+| `Empty` | Gruppe ohne Mitglieder. Die Gruppe erscheint mit einer Zeile ohne Mitglied, damit sie im Bericht nicht fehlt. |
 
-`MemberType` ist die AD-Objektklasse: `user`, `group`, `computer`, `contact`, `foreignSecurityPrincipal` (Konto aus einer vertrauten Domäne, wird als `DOMÄNE\Name` aufgelöst) usw.
+`MemberType` ist die AD-Objektklasse: `user`, `group`, `computer`, `contact`, `foreignSecurityPrincipal` (Konto aus einer vertrauten Domäne, wird als `DOMÄNE\Name` aufgelöst) usw. `extern` steht für ein Mitglied aus einer anderen Domäne des Forests. Dessen vollständiger DN steht dann in `MemberDisplayName`.
+
+### So werden Mitglieder ermittelt (Modus `Group`)
+
+Das Skript liest zu Beginn mit zwei Abfragen alle Gruppen samt `member`-Attribut und alle Konten der Domäne. Die Mitglieder jeder Gruppe kommen direkt aus ihrem `member`-Attribut, der maßgeblichen Liste im AD. Verschachtelte Gruppen werden im Speicher aufgelöst. Es gibt keine Abfrage pro Gruppe, kein Limit bei 5.000 Mitgliedern, und es fällt kein Mitglied stillschweigend heraus. Die Zusammenfassung zeigt die Zahl der Gruppen, der leeren Gruppen und der Mitglieder-Zeilen.
 
 ---
 
@@ -95,9 +100,8 @@ Datei: `ADGruppen_<Datum>.csv` (Modus `Group`) bzw. `ADBenutzerGruppen_<Datum>.c
 
 ## Hinweise
 
-- Benutzer mit einer **eigenen** primären Gruppe (nicht *Domain Users*, *Domain Computers* usw.) erscheinen im Modus `Group` nicht als `Primary`-Mitglied dieser Gruppe. Im Modus `User` sind sie korrekt enthalten.
-- Im Modus `Group` werden Mitglieder aus der eigenen Domäne und Fremdkonten aus vertrauten Domänen gefunden. Mitglieder aus **anderen Domänen desselben Forests** (Universal-Gruppen) fehlen.
+- Version 2.0 hat Mitglieder per LDAP-Filter auf `memberOf` gesucht. Dabei konnten Gruppen ohne Warnung im Bericht fehlen. Ab 2.1 werden Mitglieder aus dem `member`-Attribut gelesen (siehe oben).
 
 ---
 
-**Autor:** Luca Baumann · **Version:** 2.0 · **Stand:** 06.10.2026
+**Autor:** Luca Baumann · **Version:** 2.1 · **Stand:** 06.10.2026

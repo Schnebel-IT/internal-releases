@@ -51,7 +51,7 @@
 
 .NOTES
     Autor:     Luca Baumann
-    Version:   2.0
+    Version:   2.1
     Geaendert: 06.10.2026
 #>
 [CmdletBinding()]
@@ -76,7 +76,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$ScriptVersion = '2.0'
+$ScriptVersion = '2.1'
 $ScriptFile = 'list_permissions.ps1'
 
 #region ADReportKit 2.0
@@ -670,6 +670,9 @@ function Get-InnerMessage {
     $exception.Message
 }
 
+# Counters for the summary, so filtered or skipped data is never invisible.
+$Stats = @{ Aces = 0; Filtered = 0; Unresolved = 0; DeeperFolders = 0; Links = 0 }
+
 function Get-FolderRows {
     param([string]$DisplayPath, [string]$IoPath, [int]$Depth)
     $acl = Get-FolderAcl $IoPath
@@ -679,8 +682,10 @@ function Get-FolderRows {
     $rows = New-Object 'System.Collections.Generic.List[object]'
     $rules = $acl.GetAccessRules($true, -not $ExcludeInherited, [System.Security.Principal.SecurityIdentifier])
     foreach ($rule in $rules) {
+        $Stats.Aces++
         $account = Resolve-SidName $rule.IdentityReference.Value
-        if ($Domain -and -not $account.StartsWith("$Domain\", [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+        if ($account.StartsWith('S-1-')) { $Stats.Unresolved++ }
+        if ($Domain -and -not $account.StartsWith("$Domain\", [System.StringComparison]::OrdinalIgnoreCase)) { $Stats.Filtered++; continue }
         $rows.Add([pscustomobject][ordered]@{
                 Path              = $DisplayPath
                 Depth             = $Depth
@@ -751,7 +756,6 @@ try {
     $queue = New-Object 'System.Collections.Generic.Queue[object]'
     $queue.Enqueue(@($rootPath, 1))
     $folders = 0
-    $skippedLinks = 0
     Start-UiProgress 'Ordner werden analysiert'
     while ($queue.Count -gt 0) {
         $entry = $queue.Dequeue()
@@ -778,7 +782,16 @@ try {
             }
         }
 
-        if ($MaxDepth -ne 0 -and $depth -ge $MaxDepth) { continue }
+        if ($MaxDepth -ne 0 -and $depth -ge $MaxDepth) {
+            # Only counted, not read: tells the user that the depth limit cut something off.
+            try {
+                $enumerator = [System.IO.Directory]::EnumerateDirectories($ioPath).GetEnumerator()
+                if ($enumerator.MoveNext()) { $Stats.DeeperFolders++ }
+                $enumerator.Dispose()
+            }
+            catch { }
+            continue
+        }
         try {
             $children = (New-Object System.IO.DirectoryInfo($ioPath)).GetDirectories()
         }
@@ -788,16 +801,30 @@ try {
             continue
         }
         foreach ($child in $children) {
-            if (($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { $skippedLinks++; continue }
+            if (($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                $Stats.Links++
+                Write-ReportIssue (ConvertFrom-IoPath $child.FullName) 'Junction/Link wird nicht verfolgt' -Kind Warn
+                continue
+            }
             $queue.Enqueue(@((ConvertFrom-IoPath $child.FullName), ($depth + 1)))
         }
     }
     Stop-UiProgress
     Complete-ReportJob
-    Write-ReportSummary ([ordered]@{
-            'Ordner'              = Format-UiNumber $folders
-            'Links uebersprungen' = Format-UiNumber $skippedLinks
-        })
+    if ($Stats.DeeperFolders -gt 0) {
+        Write-UiStatus Info ('{0} Ordner auf Ebene {1} haben weitere Unterordner, die wegen -MaxDepth nicht ausgewertet wurden.' -f (Format-UiNumber $Stats.DeeperFolders), $MaxDepth)
+    }
+    if ($Domain -and $Stats.Filtered -gt 0) {
+        Write-UiStatus Info ('{0} Berechtigungen ausgeblendet, weil das Konto nicht zu "{1}" gehoert (BUILTIN, NT AUTHORITY, lokale Konten, nicht aufloesbare SIDs). Ohne -Domain erscheinen alle.' -f (Format-UiNumber $Stats.Filtered), $Domain)
+    }
+    $summary = [ordered]@{
+        'Ordner'              = Format-UiNumber $folders
+        'Berechtigungen'      = Format-UiNumber $Stats.Aces
+        'davon ausgeblendet'  = Format-UiNumber $Stats.Filtered
+        'davon nur als SID'   = Format-UiNumber $Stats.Unresolved
+        'Links uebersprungen' = Format-UiNumber $Stats.Links
+    }
+    Write-ReportSummary $summary
 }
 catch {
     Write-Host ''
