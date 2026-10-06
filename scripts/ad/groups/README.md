@@ -1,185 +1,103 @@
-## 🧾 Active Directory Gruppen-Mitglieder-Analyse
+# AD-Gruppenbericht (`list_ad_groups.ps1`)
 
-**Datei:** `main/scripts/ad/groups/list_ad_groups.ps1`  
-**Version:** 1.1  
-**Autor:** Luca Baumann  
-**Letzte Änderung:** 22. Oktober 2025
+Erstellt einen Bericht über Gruppenmitgliedschaften in Active Directory, wahlweise in zwei Richtungen:
 
----
+| Modus | Frage | Eine Zeile pro |
+| --- | --- | --- |
+| `Group` | Wer ist in welcher Gruppe? | Gruppe und Mitglied |
+| `User` | In welchen Gruppen ist ein Benutzer? | Benutzer und Gruppe |
 
-## 📄 Übersicht
+Mit `-Recursive` werden verschachtelte Gruppen bis in jede Tiefe aufgelöst. Die Spalte `Membership` zeigt, auf welchem Weg die Mitgliedschaft besteht.
 
-Das PowerShell-Skript **`list_ad_groups.ps1`** erstellt einen umfassenden Bericht über **Active Directory-Gruppen und Benutzer-Mitgliedschaften**.  
-Es kann in **zwei Richtungen** arbeiten:
-
-1. **Gruppenanalyse**  
-   → Zeigt **alle Mitglieder zu jeder Gruppe** innerhalb eines OU-Bereichs
-2. **Benutzeranalyse**  
-   → Zeigt **alle Gruppenmitgliedschaften (direkt & verschachtelt)** zu jedem Benutzer
-
-Beide Modi können über Parameter frei gewählt werden.
+Bedienung, Fortsetzen nach Abbruch und Ausgabeformat sind für alle AD-Berichte gleich und in der [Übersicht](../README.md) beschrieben.
 
 ---
 
-## ⚙️ Funktionsweise
-
-Das Skript durchsucht Active Directory dynamisch anhand der gewählten Option:
-
-- Im **Gruppenmodus** ermittelt es Gruppen, deren Beschreibung (falls vorhanden) sowie deren Mitglieder.
-- Im **Benutzermodus** ermittelt es Benutzerobjekte und listet alle AD-Gruppen, in denen sie Mitglied sind.
-- Die Ausgabe kann rekursiv alle verschachtelten Mitgliedschaften auflösen.
-- Ergebnisse werden sowohl **in der Konsole** als auch **in einer CSV-Datei** ausgegeben.
-
----
-
-## 🧩 Parameter
-
-| Parameter     | Typ    | Pflicht | Beschreibung                                                  |
-| ------------- | ------ | ------- | ------------------------------------------------------------- |
-| `-DomainName` | String | ✅      | AD-Domäne, z. B. `RIETHO.local`                               |
-| `-OUPath`     | String | ✅      | LDAP-Suchpfad oder OU, z. B. `OU=Gruppen,DC=RIETHO,DC=local`  |
-| `-Mode`       | String | ✅      | "Group" = Gruppenanalyse<br>"User" = Benutzeranalyse          |
-| `-Recursive`  | Switch | ❌      | Verschachtelte Mitgliedschaften auflösen                      |
-| `-OutputFile` | String | ❌      | Exportpfad für CSV (Standard: `C:\Temp\ADGroups_<Datum>.csv`) |
-
----
-
-## 🚀 Beispielaufrufe
-
-### 🔹 Gruppenanalyse:
+## Start
 
 ```powershell
-.\list_ad_groups.ps1 -DomainName "RIETHO.local" `
- -OUPath "OU=Gruppen,DC=RIETHO,DC=local" `
- -Mode "Group" -Recursive
+# Assistent
+.\list_ad_groups.ps1
+
+# Alle Gruppen einer OU mit allen (auch verschachtelten) Mitgliedern
+.\list_ad_groups.ps1 -Mode Group -OUPath "OU=Gruppen,DC=firma,DC=local" -Recursive
+
+# Alle Benutzer einer OU mit ihren direkten Gruppen
+.\list_ad_groups.ps1 -Mode User -OUPath "OU=Benutzer,DC=firma,DC=local"
 ```
 
-### 🔹 Benutzeranalyse:
+Direkt aus GitHub:
 
 ```powershell
-.\list_ad_groups.ps1 -DomainName "RIETHO.local" `
- -OUPath "OU=Benutzer,DC=RIETHO,DC=local" `
- -Mode "User" -Recursive
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor 3072; & ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/Schnebel-IT/internal-releases/refs/heads/main/scripts/ad/groups/list_ad_groups.ps1'))) -Mode Group -Recursive
 ```
 
 ---
 
-## 📊 Beispielausgabe (Konsole)
+## Parameter
 
-```text
-═══════════════════════════════════════════════════════════════════
-
-AD-Gruppenanalyse – Start: 21.10.2025 13:00
-
-Autor: Luca Baumann
-
-───────────────────────────────────────────────────────────────────
-
-Domäne: HOME.local
-
-OU-Pfad:OU=Gruppen,DC=HOME,DC=local
-
-Rekursive Auflösung: Aktiv
-
-Export-Datei:   C:\Temp\ADGroups_20251021_1300.csv
-
-═══════════════════════════════════════════════════════════════════
-
-Gruppen gefunden: 42
-
-Mitglieder gesamt: 385
-
-GroupNameMemberName   MemberType
-
-
----
-g-Vertrieb   HOME\m.musterfrau   User
-
-g-Vertrieb   HOME\g-MarketingGroup
-
-g-IT HOME\admin.svc  User
-
-Export abgeschlossen.
-
-═══════════════════════════════════════════════════════════════════
-```
+| Parameter | Standard | Beschreibung |
+| --- | --- | --- |
+| `-Mode` | `Group` | `Group` = Gruppe → Mitglieder, `User` = Benutzer → Gruppen |
+| `-OUPath` | ganze Domäne | Suchbasis als Distinguished Name. Alias: `-SearchBase`, `-OU` |
+| `-Recursive` | aus | Verschachtelte Gruppen vollständig auflösen |
+| `-DomainName` | eigene Domäne | DNS-Name einer anderen Domäne. Alias: `-Domain` |
+| `-Server` | automatisch | Fester Domain Controller |
+| `-OutputDir` | `C:\Temp\ADReports` | Zielordner |
+| `-OutputFile` | automatisch | Fester Dateipfad, überschreibt `-OutputDir` |
+| `-Delimiter` | `;` | CSV-Trennzeichen |
+| `-Fresh` | aus | Unterbrochenen Lauf verwerfen und neu beginnen |
 
 ---
 
-## 📁 CSV-Output
+## Ausgabe
 
-Die exportierte Datei enthält standardmäßig folgende Spalten:
+Datei: `ADGruppen_<Datum>.csv` (Modus `Group`) bzw. `ADBenutzerGruppen_<Datum>.csv` (Modus `User`)
 
-| GroupName  | MemberName        | MemberType | Domain     |
-| ---------- | ----------------- | ---------- | ---------- |
-| g-Vertrieb | HOME\m.musterfrau | User       | HOME.local |
-| g-IT       | HOME\g-Support    | Group      | HOME.local |
+### Modus `Group`
 
----
+| GroupName | Description | MemberName | MemberDisplayName | MemberType | MemberEnabled | Membership | Domain |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| g-Vertrieb | Vertrieb Innendienst | m.muster | Max Muster | user | True | Direct | firma.local |
+| g-Vertrieb | Vertrieb Innendienst | g-Marketing | | group | | Direct | firma.local |
+| g-Vertrieb | Vertrieb Innendienst | e.beispiel | Eva Beispiel | user | True | Nested | firma.local |
 
-## 🧠 Voraussetzungen
+### Modus `User`
 
-- Windows PowerShell 5.1 oder neuer
-- RSAT-Tools / Active Directory-Modul (`Import-Module ActiveDirectory`)
-- Leserechte für die angegebene OU und deren Gruppen
-- Schreibrechte auf dem Zielpfad des CSV-Exports
+| UserName | DisplayName | UserEnabled | GroupName | GroupDescription | Membership | Domain |
+| --- | --- | --- | --- | --- | --- | --- |
+| m.muster | Max Muster | True | Domain Users | | Primary | firma.local |
+| m.muster | Max Muster | True | g-Vertrieb | Vertrieb Innendienst | Direct | firma.local |
+| m.muster | Max Muster | True | g-Alle | Alle Mitarbeiter | Nested | firma.local |
 
----
+### Spalte `Membership`
 
-## ⚡ Tipp: Rekursive Auflösung
+| Wert | Bedeutung |
+| --- | --- |
+| `Direct` | direkt eingetragenes Mitglied |
+| `Nested` | Mitglied über eine verschachtelte Gruppe (nur mit `-Recursive`) |
+| `Primary` | Mitgliedschaft über die primäre Gruppe, z. B. *Domain Users* |
 
-Wenn du mit Gruppennestings arbeitest (z. B. wenn `g-IT` wiederum `g-Admins` enthält),
-nutze den Schalter `-Recursive`, um auch diese Mitglieder rekursiv aufzulösen:
-
-```powershell
-.\list_ad_groups.ps1 -DomainName "HOME.local" -OUPath "OU=Gruppen,DC=HOME,DC=local" -Recursive
-```
-
----
-
-## 🧰 Fehlerbehandlung
-
-- Gruppen, auf die kein Zugriff besteht, werden übersprungen.
-
-- Netzwerkfehler oder Anmeldeprobleme werden protokolliert.
-
-- Bei Bedarf kann -Verbose für detaillierte Laufzeitinformationen verwendet werden.
+`MemberType` ist die AD-Objektklasse: `user`, `group`, `computer`, `contact`, `foreignSecurityPrincipal` (Konto aus einer vertrauten Domäne, wird als `DOMÄNE\Name` aufgelöst) usw.
 
 ---
 
-## 🧩 Beispielhafte CSV-Verarbeitung in PowerShell
+## Was sich gegenüber Version 1.x geändert hat
 
-```powershell
-$csv = Import-Csv "C:\\Temp\\ADGroups_20251021_1300.csv"
-$csv | Group-Object GroupName | Select-Object Name, Count
-```
-
-Damit erhältst du z. B. eine Übersicht, wie viele Mitglieder jede Gruppe hat.
-
----
-
-## 🪪 Metadaten
-
-| Feld                  | Wert                                      |
-| --------------------- | ----------------------------------------- |
-| Autor                 | Luca Baumann                              |
-| Version               | 1.0                                       |
-| Letzte Aktualisierung | 21. Oktober 2025                          |
-| Repository            | Schnebel-IT / internal-releases           |
-| Pfad                  | main/scripts/ad/groups/list_ad_groups.ps1 |
+- **Fehler behoben:** Version 1.x hat keine Zeilen exportiert (die Ergebnisse gingen in einer Funktion verloren). `-Recursive` hat nur eine Ebene aufgelöst.
+- Kein `Get-ADGroupMember` mehr. Dadurch gibt es kein Limit bei 5.000 Mitgliedern und keine Abbrüche durch Mitglieder aus fremden Domänen.
+- Mitglieder der primären Gruppe (z. B. *Domain Users*) werden mit ausgegeben.
+- Neue Spalten: `MemberDisplayName`, `MemberEnabled`, `Membership` (Modus `Group`) sowie `DisplayName`, `UserEnabled`, `Membership` (Modus `User`). Die bisherigen Spalten heißen unverändert.
+- `-DomainName` und `-OUPath` sind optional.
+- CSV mit `;` statt `,`. Wer das alte Format braucht, setzt `-Delimiter ','`.
 
 ---
 
-## 🪄 Lizenzierung
+## Hinweise
 
-Dieses Skript ist Teil des internen Toolsets Schnebel-IT internal releases
-
-und darf ausschließlich intern oder mit Zustimmung von Schnebel IT verwendet werden.
-
----
-
-© 2025 Luca Baumann / Schnebel IT
-
-Internal Automation & Infrastructure Tools
+- Benutzer mit einer **eigenen** primären Gruppe (nicht *Domain Users*, *Domain Computers* usw.) erscheinen im Modus `Group` nicht als `Primary`-Mitglied dieser Gruppe. Im Modus `User` sind sie korrekt enthalten.
+- Im Modus `Group` werden Mitglieder aus der eigenen Domäne und Fremdkonten aus vertrauten Domänen gefunden. Mitglieder aus **anderen Domänen desselben Forests** (Universal-Gruppen) fehlen.
 
 ---
+
+**Autor:** Luca Baumann · **Version:** 2.0 · **Stand:** 06.10.2026
